@@ -31,21 +31,9 @@ final class HpglParser extends DataStreamParser {
     private static final Charset ISO_8859_1 = Charset.forName("iso-8859-1");
 
     private static final int END_OF_STREAM = -1;
-    //This can actually be a range of characters.
-    /*This command causes the printer to return to PCL mode from
-    HP-GL/2 mode.
-    EC%#A
-    #=0—Position cursor at previous PCL cursor position.
-    1 — Position cursor at current HP-GL/2 pen position.
-    Default = 0
-    Range = 0, 1 (even values are mapped to 0; odd values are
-    mapped to 1
-    A 0 parameter (EC%0A) sets the pen position to the previous
-    PCL position (the cursor position before entering HP-GL/2 mode)
-    */
     private static final int ESCAPE = 0x1B;
 
-    //this is not a guaranteed terminator. It's optional, so ESCAPE is a synonym.
+    //this is not a guaranteed terminator.
     private static final int TERMINATOR = ';';
     private static final int DOUBLE_QUOTES = '\"';
 
@@ -79,7 +67,7 @@ final class HpglParser extends DataStreamParser {
                     this.getInputStream().tell() - 2,
                     new String(commandBytes, ISO_8859_1).toUpperCase());
 
-            if (firstByte == TERMINATOR ) {
+            if (firstByte == TERMINATOR) {
                 firstByte = this.getInputStream().read();
             }
         }

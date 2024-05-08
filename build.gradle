@@ -21,7 +21,7 @@ subprojects {
     apply plugin: 'com.jfrog.bintray'
     apply plugin: 'net.researchgate.release'
 
-    version = "2.3"
+    version = "2.4"
 
     check.dependsOn jacocoTestReport
 
@@ -29,8 +29,8 @@ subprojects {
 
     tasks.withType(JavaCompile) {
         options.encoding = 'UTF-8'
-        sourceCompatibility = '1.7'
-        targetCompatibility = '1.7'
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
     }
     
     javadoc {
@@ -43,6 +43,7 @@ subprojects {
 
     dependencies {
         testCompile group: 'junit', name: 'junit', version: '4.12'
+        implementation group: 'com.indeed', name: 'util-mmap', version: '1.0.52-3042601'
     }
 
     configurations {
