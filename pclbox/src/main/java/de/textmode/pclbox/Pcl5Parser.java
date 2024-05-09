@@ -295,7 +295,8 @@ final class Pcl5Parser extends DataStreamParser {
         do {
             readByte = this.getInputStream().read();
             sb.append(Character.toString((char) readByte));
-        } while (readByte != '>');
+        } 
+        while (readByte != '>');
 
         readByte = this.getInputStream().read();
         if (readByte != 'A') {

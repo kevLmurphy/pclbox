@@ -28,6 +28,8 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 /**
  * Implementation of {@link PclInputStream} for underlying {@link InputStream}s.
@@ -48,21 +50,40 @@ final class PclInputStreamForInputStream implements PclInputStream {
         try {
             if (inputStream instanceof FilterInputStream) {
                 FilterInputStream filtered = (FilterInputStream)inputStream;
-                Field field = FilterInputStream.class.getDeclaredField("in");
-                field.setAccessible(true);
-                InputStream internal = (InputStream) field.get(filtered);
-                return getInputLength(internal);
+                String finalCount = null;
+                finalCount = AccessController.doPrivileged((PrivilegedAction<String>) () -> {
+                    try {
+                        Field field = FilterInputStream.class.getDeclaredField("in");
+                        field.setAccessible(true);
+                        InputStream internal = (InputStream) field.get(filtered);
+                        return (String) String.valueOf(getInputLength(internal));
+                    } catch (ReflectiveOperationException | SecurityException e) {
+                        //do nothing
+                    }
+                    return null;
+                });
+                return Integer.getInteger(finalCount);
             } else if (inputStream instanceof ByteArrayInputStream) {
                 ByteArrayInputStream wrapper = (ByteArrayInputStream)inputStream;
-                Field field = ByteArrayInputStream.class.getDeclaredField("buf");
-                field.setAccessible(true);
-                byte[] buffer = (byte[])field.get(wrapper);
-                return Math.toIntExact(buffer.length);
+                String finalCount = null;
+                finalCount = AccessController.doPrivileged((PrivilegedAction<String>) () -> {
+                    try {
+                        Field field = ByteArrayInputStream.class.getDeclaredField("buf");
+                        field.setAccessible(true);
+                        byte[] buffer = (byte[])field.get(wrapper);
+                        return String.valueOf(Math.toIntExact(buffer.length));
+                    } catch (ReflectiveOperationException | SecurityException e) {
+                       //do nothing
+                    }
+                    return null;
+                });
+                return Integer.parseInt(finalCount);
             } else if (inputStream instanceof FileInputStream) {
                 FileInputStream fileStream = (FileInputStream)inputStream;
                 return Math.toIntExact(fileStream.getChannel().size());
             }
-        } catch (NoSuchFieldException | IllegalAccessException | IOException exception) {
+        } catch (//NoSuchFieldException | IllegalAccessException |
+                 IOException exception) {
             // Ignore all errors and just return -1.
         }
         return -1;
@@ -83,19 +104,20 @@ final class PclInputStreamForInputStream implements PclInputStream {
                 }
                 this.bb = null;
             }            catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new IllegalArgumentException ("An error occurred when instantiating mapped buffers" + e);
             }
             //This is only necessary for passing the test classes.
             //The above file channel method is currently used always, as you cannot pass stdin via PCLDumper.
         } else if (input instanceof ByteArrayInputStream) {
             try (ReadableByteChannel channel = Channels.newChannel(input)) {
-                this.bb = ByteBuffer.allocate(getInputLength(input));
+                int buffersize = getInputLength(input);
+                this.bb = ByteBuffer.allocate(buffersize);
                 channel.read(this.bb);
                 //have to flip to allow reading FROM instead of reading TO the ByteBuffer bb.
                 this.bb.flip();
                 this.mbb = null;
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new IllegalArgumentException ("An error occurred when instantiating byte buffers" + e);
             }
         }         else {
             //Input was larger than 2GB, default to slow streaming.
