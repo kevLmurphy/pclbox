@@ -11,7 +11,7 @@ package de.textmode.pclbox;
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. q
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
@@ -22,14 +22,12 @@ import java.io.FileInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+
 
 /**
  * Implementation of {@link PclInputStream} for underlying {@link InputStream}s.
@@ -46,38 +44,33 @@ final class PclInputStreamForInputStream implements PclInputStream {
     private final ByteBuffer bb;
     private long position;
 
+    /*** Returns the accurate length of any inputStream, while attempting to preserve stream for future use.
+     * Does so by reading InputStream 1 byte at a time, then resetting back to the start of the InputStream.
+     * Works for InputStreams of < Integer.MAX_VALUE  bytes.
+     * @param inputStream any InputStream
+     * @return StreamLength
+     * @throws IOException When inputStream>2GB
+     */
+    public static int getStreamLength(InputStream inputStream) throws IOException {
+        byte[] buffer = new byte[1];
+        inputStream.mark(Integer.MAX_VALUE);
+        int chunkBytesRead = 0;
+        int length = 0;
+        while ((chunkBytesRead = inputStream.read(buffer)) != -1) {
+            length += chunkBytesRead;
+        }
+        inputStream.reset();
+        return length;
+    }
+
     static int getInputLength(InputStream inputStream) {
         try {
             if (inputStream instanceof FilterInputStream) {
-                FilterInputStream filtered = (FilterInputStream)inputStream;
-                String finalCount = null;
-                finalCount = AccessController.doPrivileged((PrivilegedAction<String>) () -> {
-                    try {
-                        Field field = FilterInputStream.class.getDeclaredField("in");
-                        field.setAccessible(true);
-                        InputStream internal = (InputStream) field.get(filtered);
-                        return (String) String.valueOf(getInputLength(internal));
-                    } catch (ReflectiveOperationException | SecurityException e) {
-                        //do nothing
-                    }
-                    return null;
-                });
-                return Integer.getInteger(finalCount);
+                return getStreamLength(inputStream);
             } else if (inputStream instanceof ByteArrayInputStream) {
                 ByteArrayInputStream wrapper = (ByteArrayInputStream)inputStream;
-                String finalCount = null;
-                finalCount = AccessController.doPrivileged((PrivilegedAction<String>) () -> {
-                    try {
-                        Field field = ByteArrayInputStream.class.getDeclaredField("buf");
-                        field.setAccessible(true);
-                        byte[] buffer = (byte[])field.get(wrapper);
-                        return String.valueOf(Math.toIntExact(buffer.length));
-                    } catch (ReflectiveOperationException | SecurityException e) {
-                       //do nothing
-                    }
-                    return null;
-                });
-                return Integer.parseInt(finalCount);
+                //available() is accurate for ByteArrayInputStream, but not the other InputStreams.
+                return wrapper.available();
             } else if (inputStream instanceof FileInputStream) {
                 FileInputStream fileStream = (FileInputStream)inputStream;
                 return Math.toIntExact(fileStream.getChannel().size());
@@ -104,7 +97,7 @@ final class PclInputStreamForInputStream implements PclInputStream {
                 }
                 this.bb = null;
             }            catch (IOException e) {
-                throw new IllegalArgumentException ("An error occurred when instantiating mapped buffers" + e);
+                throw new IllegalArgumentException("An error occurred when instantiating mapped buffers" + e);
             }
             //This is only necessary for passing the test classes.
             //The above file channel method is currently used always, as you cannot pass stdin via PCLDumper.
@@ -117,7 +110,7 @@ final class PclInputStreamForInputStream implements PclInputStream {
                 this.bb.flip();
                 this.mbb = null;
             } catch (IOException e) {
-                throw new IllegalArgumentException ("An error occurred when instantiating byte buffers" + e);
+                throw new IllegalArgumentException("An error occurred when instantiating byte buffers" + e);
             }
         }         else {
             //Input was larger than 2GB, default to slow streaming.
@@ -153,8 +146,6 @@ final class PclInputStreamForInputStream implements PclInputStream {
             if (this.mbb.remaining() > 0) {
                 byte b = this.mbb.get();
                 int result = b & 0xff;
-                //if unsigned needed ...
-                //int result=Byte.toUnsignedInt(b);
                 ++this.position;
                 return result;
             } else {
@@ -325,12 +316,10 @@ final class PclInputStreamForInputStream implements PclInputStream {
                     This lets us act as though the position were 0 even if it did not successfully move to that position
                     This prevents buffer over/under flow errors.
 
-                    If no movement is possible, throw an error.
+                    If offset is unreachable, throw an error.
 
                     This mimics the actual behavior of this.input.skip(offset).
-                    This holds true for any bytebuffer.
-
-                    Documentation says explicitly to not rely on skip's results for IS, and to code your own version.
+                    This should hold true for any bytebuffer.
                     */
                     this.bb.position(offvalue);
                 }                 else {
