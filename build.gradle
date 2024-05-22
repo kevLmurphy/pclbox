@@ -21,7 +21,7 @@ subprojects {
     apply plugin: 'com.jfrog.bintray'
     apply plugin: 'net.researchgate.release'
 
-    version = "2.4"
+    version = "2.5"
 
     check.dependsOn jacocoTestReport
 
